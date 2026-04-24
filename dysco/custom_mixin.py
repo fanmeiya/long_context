@@ -20,7 +20,7 @@ import os
 import warnings
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union, List, Tuple, Dict
-
+from transformers.models.qwen2.modeling_qwen2 import repeat_kv
 import torch
 import torch.distributed as dist
 from torch import nn
@@ -810,6 +810,11 @@ class CustomGenerationMixin(GenerationMixin):
         while self._has_unfinished_sequences(this_peer_finished, synced_gpus, device=input_ids.device):
             position_idx = cur_len - 1
             # prepare model inputs
+            # 🔴 修复 cache 崩溃问题
+            cache_position = model_kwargs.get("cache_position", None)
+            if cache_position is not None and hasattr(cache_position, "numel") and cache_position.numel() == 0:
+                model_kwargs.pop("cache_position", None)
+                model_kwargs.pop("past_key_values", None)
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
             if is_prefill:
                 outputs = self(**model_inputs, compute_logits=False, return_dict=True)
